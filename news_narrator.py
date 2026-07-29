@@ -23,16 +23,23 @@ TARGET_RSS_FEEDS = [
     "https://news.google.com/rss/search?q=%22Real+Madrid%22+OR+%22FC+Barcelona%22+OR+%22Manchester+City%22+OR+Guardiola+OR+Ancelotti+OR+Arteta+declaraciones+OR+conferencia&hl=es-419&gl=MX&ceid=MX:es-419"
 ]
 
-INVICTOS_SYSTEM_PROMPT = """Eres el redactor estrella de 'El Once Titular', la comunidad deportiva líder. Tu trabajo es transformar noticias deportivas crudas (sobre fichajes, declaraciones de entrenadores o primicias de periodistas como Fabrizio Romano, Marca, AS, BBC, L'Equipe) en publicaciones virales para Telegram con el estilo narrativo único de 'Invictos / Juez Central'.
+INVICTOS_SYSTEM_PROMPT = """Eres el redactor estrella de 'El Once Titular', la comunidad deportiva líder. Tu trabajo es transformar noticias deportivas crudas (sobre fichajes, declaraciones de entrenadores o primicias de periodistas como Fabrizio Romano, Marca, AS, BBC, L'Equipe) en publicaciones virales para Telegram con el estilo narrativo único, emotivo y detallado de 'Invictos / Juez Central'.
 
-REGLAS DE ESTILO INVICTOS:
-1. TÍTULO EN MAYÚSCULAS IMPACTANTE CON EMOJIS (ej. 🚨 ¡¡BOMBAZO DE ÚLTIMA HORA EN LA PREMIER LEAGUE!! o ⚪ ¡¡EL SUEÑO DEL REAL MADRID SIGUE VIVO!!).
-2. PÁRRAFO PRINCIPAL EMOTIVO: Narrado con pasión, mencionando la edad del jugador, su contexto futbolístico, clubes involucrados y el valor de la decisión.
-3. CITA A LA FUENTE: Si la noticia menciona a Fabrizio Romano, David Ornstein, Marca, AS, L'Equipe, The Athletic o rueda de prensa oficial, MENTIONALO EXPLÍCITAMENTE (ej. "Según la información confirmada por Fabrizio Romano...").
-4. PREGUNTA DE CIERRE EN MAYÚSCULAS: Una frase corta final para generar interacción con los aficionados (ej. ¿HACE BIEN EN SALIR DEL CITY, SEÑORES? o ¿SE IMAGINAN A ESTE CRACK EN EL CAMP NOU?).
-5. LÍNEA DE COMPETICIÓN / MERCADO Y HASHTAGS al final (ej. 🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League / Mercado de Fichajes \n 🔥 #Fichajes #Mercado #ElOnceTitular).
-6. Mantén el idioma strictly en ESPAÑOL fluido y profesional.
-7. No uses formato Markdown pesado (solo <b>negrita</b>, <i>cursiva</i> y HTML limpio compatible con Telegram).
+REGLAS DE ESTRUCTURA Y REDACCIÓN OBLIGATORIA (3 PÁRRAFOS COMPLETOS Y CLAROS):
+
+PÁRRAFO 1: Contexto completo del jugador/noticia. Explica quién es el jugador, edad si está disponible, la decisión que tomó o la primicia del club, y el impacto inmediato para los aficionados.
+
+PÁRRAFO 2: Detalles técnicos y fuente oficial. Explica la operación (agente libre, traspaso, cesión), los detalles tácticos del entrenador o directiva, y cita EXPLÍCITAMENTE a la fuente (ej. "Según la información revelada por Fabrizio Romano...", "Reporta Marca...", "Confirma L'Equipe...").
+
+PÁRRAFO 3 (CIERRE EN MAYÚSCULAS): Una frase contundente en MAYÚSCULAS que resuma el sentimiento o la sorpresa (ej. POR SIEMPRE EN EL CORAZÓN DE LOS CULÉS. / LAS IMPREDECIBLES VUELTAS DEL FÚTBOL. / UN MOVIMIENTO QUE SACUDE EUROPA.).
+
+LÍNEA FINAL:
+🌍 Mercado de Fichajes / Primicia Internacional
+🔥 #Fichajes #Mercado #ElOnceTitular
+
+IMPORTANTE: 
+- El texto debe ser extenso, claro, explicativo y dejar 0 dudas al lector.
+- Formato HTML limpio compatible con Telegram (usa <b>negrita</b> e <i>cursiva</i>).
 
 Noticia base:
 {raw_title}
@@ -64,7 +71,6 @@ class NewsNarratorEngine:
                     link = link_m.group(1).strip() if link_m else ""
                     pub_str = pub_m.group(1).strip() if pub_m else ""
 
-                    # Filter out old news by publication date
                     is_fresh = True
                     if pub_str:
                         try:
@@ -123,15 +129,15 @@ class NewsNarratorEngine:
             except Exception as e:
                 logger.error(f"Error calling Gemini AI API: {e}")
 
-        # Intelligent Fallback Redactor (Invictos style) if GEMINI_API_KEY is not set
-        source_tag = f"Según los informes de {source_name}" if source_name else "Según la información de fuentes de élite"
+        # Rich 3-paragraph Editorial Fallback Redactor (Invictos style)
+        source_tag = f"Según la información confirmada por <b>{source_name}</b>" if source_name else "Según la información de fuentes periodísticas de élite"
         clean_title = html.escape(raw_title)
         
         return (
-            f"🚨 <b>¡¡BOMBAZO EN EL MERCADO DE FICHAJES!!</b>\n\n"
-            f"Atención a la información que llega desde Europa. {clean_title}.\n\n"
-            f"📝 {source_tag}, las negociaciones y movimientos avanzan rápidamente entre los clubes involucrados. Un movimiento que promete sacudir el panorama del fútbol mundial.\n\n"
-            f"¿QUÉ OPINAN DE ESTE MOVIMIENTO, SEÑORES?\n\n"
+            f"🚨 <b>¡¡BOMBAZO DE ÚLTIMA HORA EN EL MERCADO DE FICHAJES!!</b>\n\n"
+            f"Atención a la información que remece el fútbol internacional. {clean_title}. Una noticia que genera revuelo inmediato entre los aficionado y reconfigura los planes deportivos de cara a la temporada.\n\n"
+            f"📝 {source_tag}, las negociaciones y gestiones avanzan entre las partes involucradas para cerrar los términos de la operación. Una decisión estratégica que añade jerarquía, competencia interna y expectativas al proyecto del club.\n\n"
+            f"<b>LAS IMPREDECIBLES VUELTAS DEL FÚTBOL.</b>\n\n"
             f"🌍 <i>Mercado de Fichajes / Primicia Internacional</i>\n"
             f"🔥 #Fichajes #Mercado #ElOnceTitular"
         )
