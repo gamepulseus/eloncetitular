@@ -9,12 +9,14 @@ if hasattr(sys.stdout, 'reconfigure'):
 
 from config import (
     LIVE_POLL_INTERVAL,
+    NEWS_POLL_INTERVAL,
     TARGET_LEAGUES
 )
 from api_football import APIFootballClient
 from state_manager import StateManager
 from telegram_bot import TelegramBroadcaster
 from twitter_bot import TwitterBroadcaster
+from news_narrator import NewsNarratorEngine
 import formatter
 
 logging.basicConfig(
@@ -32,6 +34,7 @@ class FootballBotEngine:
         self.state_manager = StateManager()
         self.telegram_broadcaster = TelegramBroadcaster()
         self.twitter_broadcaster = TwitterBroadcaster()
+        self.news_engine = NewsNarratorEngine()
         self.tracked_live_fixture_ids: Set[int] = set()
         # Pending goal buffer to catch delayed assist data from API
         self.pending_goals: Dict[str, Dict[str, Any]] = {}
@@ -173,7 +176,7 @@ class FootballBotEngine:
             if now_ts - item["timestamp"] >= 10.0:
                 msg = formatter.format_goal(item["evt"], item["fixture"])
                 await self.broadcast_alert(msg, evt_id)
-                expired_ids.append(evt_id)
+                expired_ids.append(eid)
         for eid in expired_ids:
             if eid in self.pending_goals:
                 del self.pending_goals[eid]
@@ -211,6 +214,17 @@ class FootballBotEngine:
                     if st_code in ["FT", "AET", "PEN", "CANC", "ABD", "SUSP"]:
                         self.tracked_live_fixture_ids.discard(fix_id)
 
+    async def poll_news(self):
+        """Poll Tier 1 sources (Fabrizio Romano, Marca, AS, BBC, L'Equipe, etc.), rewrite via AI, and publish news alerts."""
+        logger.info("Polling latest news & transfer headlines from Tier 1 sources...")
+        try:
+            posts = await self.news_engine.get_latest_news_posts()
+            for msg, news_id in posts:
+                if not self.state_manager.is_processed(news_id):
+                    await self.broadcast_alert(msg, news_id)
+        except Exception as e:
+            logger.error(f"Error polling news: {e}")
+
     async def run(self):
         logger.info(f"Starting El Once Titular Automation Bot (Polling interval: {LIVE_POLL_INTERVAL}s)...")
         await self.check_api_status()
@@ -218,10 +232,18 @@ class FootballBotEngine:
         # Take a snapshot of currently live fixtures at startup to ignore all past events
         await self.snapshot_live_fixtures_on_startup()
         
+        last_news_check = 0
+
         while True:
             try:
-                # Poll live matches & events ONLY
+                # Poll live matches & events
                 await self.poll_live_fixtures()
+
+                # Poll Tier 1 news & transfer headlines periodically
+                now = asyncio.get_event_loop().time()
+                if last_news_check == 0 or (now - last_news_check > NEWS_POLL_INTERVAL):
+                    await self.poll_news()
+                    last_news_check = now
                     
             except Exception as e:
                 logger.error(f"Error in main polling loop: {e}", exc_info=True)
