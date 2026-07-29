@@ -6,6 +6,7 @@ load_dotenv()
 # Environment & Debug
 ENV = os.getenv("ENV", "production")
 DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "t")
+STATE_FILE = os.getenv("STATE_FILE", "state.json")
 
 # API-Football Credentials
 API_KEY = os.getenv("API_FOOTBALL_KEY", "")
