@@ -2,7 +2,7 @@ import logging
 import hashlib
 import re
 import html
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 import httpx
 from state_manager import StateManager
 from config import GEMINI_API_KEY
