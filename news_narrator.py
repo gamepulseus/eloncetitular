@@ -11,25 +11,33 @@ from config import GEMINI_API_KEY
 
 logger = logging.getLogger("NewsNarrator")
 
-# Target RSS sources covering Tier 1 insiders, international press, and official press conferences
+# Target RSS sources explicitly covering every Tier 1 insider and international sports press outlet requested:
+# Insiders: Fabrizio Romano, David Ornstein, Matteo Moretto, Gianluca Di Marzio, Florian Plettenberg, Gerard Romero
+# Press: Marca, Diario AS, Mundo Deportivo, Sport, The Athletic, BBC Sport, L'Equipe, Kicker, Bild
 TARGET_RSS_FEEDS = [
-    # Fabrizio Romano & Tier 1 Transfers
-    "https://news.google.com/rss/search?q=Fabrizio+Romano+fichajes+OR+transfer+OR+here+we+go&hl=es-419&gl=MX&ceid=MX:es-419",
-    # Spanish Press: Marca, AS, Sport, Mundo Deportivo
-    "https://news.google.com/rss/search?q=site:marca.com+OR+site:as.com+OR+site:sport.es+OR+site:mundodeportivo.com+fichajes+futbol&hl=es-419&gl=MX&ceid=MX:es-419",
-    # International Press: BBC Sport, The Athletic, L'Equipe, Bild
-    "https://news.google.com/rss/search?q=site:bbc.com/sport+OR+site:theathletic.com+OR+site:lequipe.fr+OR+site:bild.de+football+transfer&hl=en-US&gl=US&ceid=US:en",
-    # Official Press Conferences & Top Clubs (Real Madrid, Barcelona, Man City)
-    "https://news.google.com/rss/search?q=%22Real+Madrid%22+OR+%22FC+Barcelona%22+OR+%22Manchester+City%22+OR+Guardiola+OR+Ancelotti+OR+Arteta+declaraciones+OR+conferencia&hl=es-419&gl=MX&ceid=MX:es-419"
+    # 1. Tier 1 Insiders (Fabrizio Romano, David Ornstein, Matteo Moretto, Di Marzio, Florian Plettenberg, Gerard Romero)
+    "https://news.google.com/rss/search?q=%22Fabrizio+Romano%22+OR+%22David+Ornstein%22+OR+%22Matteo+Moretto%22+OR+%22Di+Marzio%22+OR+%22Florian+Plettenberg%22+OR+%22Gerard+Romero%22+fichajes+OR+transfer&hl=es-419&gl=MX&ceid=MX:es-419",
+    
+    # 2. Spanish Press (Marca, Diario AS, Mundo Deportivo, Sport)
+    "https://news.google.com/rss/search?q=site:marca.com+OR+site:as.com+OR+site:mundodeportivo.com+OR+site:sport.es+fichajes+futbol&hl=es-419&gl=MX&ceid=MX:es-419",
+    
+    # 3. English Press (The Athletic, BBC Sport)
+    "https://news.google.com/rss/search?q=site:theathletic.com+OR+site:bbc.com/sport+football+transfer&hl=en-US&gl=US&ceid=US:en",
+    
+    # 4. French Press (L'Équipe)
+    "https://news.google.com/rss/search?q=site:lequipe.fr+football+transfert&hl=fr&gl=FR&ceid=FR:fr",
+    
+    # 5. German Press (Kicker, Bild)
+    "https://news.google.com/rss/search?q=site:kicker.de+OR+site:bild.de+fussball+transfer&hl=de&gl=DE&ceid=DE:de"
 ]
 
-INVICTOS_SYSTEM_PROMPT = """Eres el redactor estrella de 'El Once Titular', la comunidad deportiva líder. Tu trabajo es transformar noticias deportivas crudas (sobre fichajes, declaraciones de entrenadores o primicias de periodistas como Fabrizio Romano, Marca, AS, BBC, L'Equipe) en publicaciones virales para Telegram con el estilo narrativo único, emotivo y detallado de 'Invictos / Juez Central'.
+INVICTOS_SYSTEM_PROMPT = """Eres el redactor estrella de 'El Once Titular', la comunidad deportiva líder. Tu trabajo es transformar noticias deportivas crudas (sobre fichajes, declaraciones de entrenadores o primicias de periodistas como Fabrizio Romano, David Ornstein, Matteo Moretto, Gianluca Di Marzio, Florian Plettenberg, Gerard Romero, Marca, AS, Mundo Deportivo, Sport, The Athletic, BBC, L'Equipe, Kicker, Bild) en publicaciones virales para Telegram con el estilo narrativo único, emotivo y detallado de 'Invictos / Juez Central'.
 
 REGLAS DE ESTRUCTURA Y REDACCIÓN OBLIGATORIA (3 PÁRRAFOS COMPLETOS Y CLAROS):
 
 PÁRRAFO 1: Contexto completo del jugador/noticia. Explica quién es el jugador, edad si está disponible, la decisión que tomó o la primicia del club, y el impacto inmediato para los aficionados.
 
-PÁRRAFO 2: Detalles técnicos y fuente oficial. Explica la operación (agente libre, traspaso, cesión), los detalles tácticos del entrenador o directiva, y cita EXPLÍCITAMENTE a la fuente (ej. "Según la información revelada por Fabrizio Romano...", "Reporta Marca...", "Confirma L'Equipe...").
+PÁRRAFO 2: Detalles técnicos y fuente oficial. Explica la operación (agente libre, traspaso, cesión), los detalles tácticos del entrenador o directiva, y cita EXPLÍCITAMENTE a la fuente (ej. "Según la información revelada por Fabrizio Romano...", "Reporta David Ornstein...", "Confirma Marca...", "Informa L'Equipe...", "Señala Kicker...").
 
 PÁRRAFO 3 (CIERRE EN MAYÚSCULAS): Una frase contundente en MAYÚSCULAS que resuma el sentimiento o la sorpresa (ej. POR SIEMPRE EN EL CORAZÓN DE LOS CULÉS. / LAS IMPREDECIBLES VUELTAS DEL FÚTBOL. / UN MOVIMIENTO QUE SACUDE EUROPA.).
 
@@ -135,7 +143,7 @@ class NewsNarratorEngine:
         
         return (
             f"🚨 <b>¡¡BOMBAZO DE ÚLTIMA HORA EN EL MERCADO DE FICHAJES!!</b>\n\n"
-            f"Atención a la información que remece el fútbol internacional. {clean_title}. Una noticia que genera revuelo inmediato entre los aficionado y reconfigura los planes deportivos de cara a la temporada.\n\n"
+            f"Atención a la información que remece el fútbol internacional. {clean_title}. Una noticia que genera revuelo inmediato entre los aficionados y reconfigura los planes deportivos de cara a la temporada.\n\n"
             f"📝 {source_tag}, las negociaciones y gestiones avanzan entre las partes involucradas para cerrar los términos de la operación. Una decisión estratégica que añade jerarquía, competencia interna y expectativas al proyecto del club.\n\n"
             f"<b>LAS IMPREDECIBLES VUELTAS DEL FÚTBOL.</b>\n\n"
             f"🌍 <i>Mercado de Fichajes / Primicia Internacional</i>\n"
