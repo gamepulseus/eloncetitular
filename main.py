@@ -9,8 +9,6 @@ if hasattr(sys.stdout, 'reconfigure'):
 
 from config import (
     LIVE_POLL_INTERVAL,
-    INJURIES_POLL_INTERVAL,
-    TRANSFERS_POLL_INTERVAL,
     TARGET_LEAGUES
 )
 from api_football import APIFootballClient
@@ -213,45 +211,17 @@ class FootballBotEngine:
                     if st_code in ["FT", "AET", "PEN", "CANC", "ABD", "SUSP"]:
                         self.tracked_live_fixture_ids.discard(fix_id)
 
-    async def poll_injuries(self):
-        """Poll injuries reported today."""
-        logger.info("Polling injuries...")
-        today_str = datetime.now().strftime("%Y-%m-%d")
-        
-        leagues = TARGET_LEAGUES if TARGET_LEAGUES else [39]
-        for league_id in leagues:
-            injuries = await self.api_client.get_injuries(date=today_str, league_id=league_id)
-            for inj in injuries:
-                player_id = inj.get("player", {}).get("id", 0)
-                fixture_id = inj.get("fixture", {}).get("id", 0)
-                inj_id = f"inj_{player_id}_{fixture_id}_{today_str}"
-                
-                if self.state_manager.is_processed(inj_id):
-                    continue
-
-                msg = formatter.format_injury(inj)
-                if msg:
-                    await self.broadcast_alert(msg, inj_id)
-
     async def run(self):
         logger.info(f"Starting El Once Titular Automation Bot (Polling interval: {LIVE_POLL_INTERVAL}s)...")
         await self.check_api_status()
 
         # Take a snapshot of currently live fixtures at startup to ignore all past events
         await self.snapshot_live_fixtures_on_startup()
-
-        last_injury_check = 0
         
         while True:
             try:
-                # Poll live matches & events
+                # Poll live matches & events ONLY
                 await self.poll_live_fixtures()
-                
-                # Poll injuries periodically
-                now = asyncio.get_event_loop().time()
-                if now - last_injury_check > INJURIES_POLL_INTERVAL:
-                    await self.poll_injuries()
-                    last_injury_check = now
                     
             except Exception as e:
                 logger.error(f"Error in main polling loop: {e}", exc_info=True)
