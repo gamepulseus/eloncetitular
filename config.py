@@ -31,6 +31,9 @@ LIVE_POLL_INTERVAL = int(os.getenv("LIVE_POLL_INTERVAL", "60"))
 INJURIES_POLL_INTERVAL = int(os.getenv("INJURIES_POLL_INTERVAL", "1800"))
 TRANSFERS_POLL_INTERVAL = int(os.getenv("TRANSFERS_POLL_INTERVAL", "3600"))
 
-# Target leagues filter
-_leagues_str = os.getenv("TARGET_LEAGUES", "").strip()
-TARGET_LEAGUES = [int(l.strip()) for l in _leagues_str.split(",") if l.strip().isdigit()]
+# List of target league IDs to monitor (includes major leagues, international cups, and national cups)
+# Premier, LaLiga, Serie A, Bundesliga, Ligue 1, UCL, UEL, UECL, Arg, Bra, MX, MLS, Saudi, Lib, Sud, FUTVE, Copa Ven, Copa del Rey, Coppa Italia, FA Cup, Carabao, DFB Pokal, Coupe de France, Copa Arg, Copa do Brasil
+DEFAULT_TARGET_LEAGUES = "39,140,135,78,61,2,3,848,128,71,262,253,307,13,11,299,1113,137,136,45,48,81,66,130,73"
+
+target_leagues_str = os.getenv("TARGET_LEAGUES", DEFAULT_TARGET_LEAGUES)
+TARGET_LEAGUES = [int(x.strip()) for x in target_leagues_str.split(",") if x.strip().isdigit()]
