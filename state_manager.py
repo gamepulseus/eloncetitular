@@ -7,8 +7,8 @@ from config import STATE_FILE
 logger = logging.getLogger("StateManager")
 
 class StateManager:
-    def __init__(self, state_file: Path = STATE_FILE):
-        self.state_file = state_file
+    def __init__(self, state_file: str = STATE_FILE):
+        self.state_file = Path(state_file)
         self.processed_ids: Set[str] = set()
         self._load()
 
