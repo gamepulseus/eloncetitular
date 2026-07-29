@@ -2,23 +2,19 @@ import asyncio
 import logging
 import sys
 from datetime import datetime
-from typing import List, Dict, Any, Set, Optional
+from typing import List, Dict, Any, Set
 
 if hasattr(sys.stdout, 'reconfigure'):
     sys.stdout.reconfigure(encoding='utf-8')
 
 from config import (
     LIVE_POLL_INTERVAL,
-    NEWS_POLL_INTERVAL,
-    TARGET_LEAGUES,
-    TELEGRAM_LIVE_CHANNEL_ID,
-    TELEGRAM_NEWS_CHANNEL_ID
+    TARGET_LEAGUES
 )
 from api_football import APIFootballClient
 from state_manager import StateManager
 from telegram_bot import TelegramBroadcaster
 from twitter_bot import TwitterBroadcaster
-from news_narrator import NewsNarratorEngine
 import formatter
 
 logging.basicConfig(
@@ -36,16 +32,15 @@ class FootballBotEngine:
         self.state_manager = StateManager()
         self.telegram_broadcaster = TelegramBroadcaster()
         self.twitter_broadcaster = TwitterBroadcaster()
-        self.news_engine = NewsNarratorEngine()
         self.tracked_live_fixture_ids: Set[int] = set()
         # Pending goal buffer to catch delayed assist data from API
         self.pending_goals: Dict[str, Dict[str, Any]] = {}
 
-    async def broadcast_alert(self, msg: str, event_id: str, channel_id: Optional[str] = None):
-        """Broadcast alert to designated Telegram channel and Twitter, then mark event as processed."""
+    async def broadcast_alert(self, msg: str, event_id: str):
+        """Broadcast alert to Telegram (@ElOnceTitular) and Twitter, then mark event as processed."""
         # 1. Telegram
-        tg_sent = await self.telegram_broadcaster.send_message(msg, channel_id=channel_id)
-        # 2. Twitter / X
+        tg_sent = await self.telegram_broadcaster.send_message(msg)
+        # 2. Twitter / X (Disabled)
         tw_sent = await self.twitter_broadcaster.send_tweet(msg)
 
         if tg_sent or tw_sent:
@@ -91,7 +86,6 @@ class FootballBotEngine:
         """Process a single fixture for live channel (@ElOnceTitular): status transitions, lineups, and events."""
         fixture_id = fixture['fixture']['id']
         status_code = fixture['fixture']['status']['short']
-        target_ch = TELEGRAM_LIVE_CHANNEL_ID
         
         # 1. Match status change alert (Kickoff, HT, 2H, FT, ET, PEN, etc.)
         status_event_id = f"status_{fixture_id}_{status_code}"
@@ -102,7 +96,7 @@ class FootballBotEngine:
 
             status_msg = formatter.format_match_status(fixture, status_code, statistics=stats)
             if status_msg:
-                await self.broadcast_alert(status_msg, status_event_id, channel_id=target_ch)
+                await self.broadcast_alert(status_msg, status_event_id)
 
         # IF match is finished or we are checking a finished fixture, DO NOT process old past events or lineups!
         if is_finished_check or status_code in ["FT", "AET", "PEN", "CANC", "ABD", "SUSP"]:
@@ -115,7 +109,7 @@ class FootballBotEngine:
             if lineups:
                 lineup_msg = formatter.format_lineup(lineups, fixture)
                 if lineup_msg:
-                    await self.broadcast_alert(lineup_msg, lineup_event_id, channel_id=target_ch)
+                    await self.broadcast_alert(lineup_msg, lineup_event_id)
 
         # 3. Live events (Goals, Cards, Substitutions, VAR)
         events = await self.api_client.get_fixture_events(fixture_id)
@@ -138,7 +132,7 @@ class FootballBotEngine:
                 if assist_name and assist_name != "None":
                     # Assist is available immediately! Post Goal WITH assist right away.
                     msg = formatter.format_goal(evt, fixture)
-                    await self.broadcast_alert(msg, evt_id, channel_id=target_ch)
+                    await self.broadcast_alert(msg, evt_id)
                     if evt_id in self.pending_goals:
                         del self.pending_goals[evt_id]
                 else:
@@ -154,7 +148,7 @@ class FootballBotEngine:
                         if now_ts - prev_ts >= 10.0:
                             # Waiting time passed and still no assist, post Goal without assist.
                             msg = formatter.format_goal(evt, fixture)
-                            await self.broadcast_alert(msg, evt_id, channel_id=target_ch)
+                            await self.broadcast_alert(msg, evt_id)
                             del self.pending_goals[evt_id]
             else:
                 msg = None
@@ -166,20 +160,19 @@ class FootballBotEngine:
                     msg = formatter.format_var(evt, fixture)
 
                 if msg:
-                    await self.broadcast_alert(msg, evt_id, channel_id=target_ch)
+                    await self.broadcast_alert(msg, evt_id)
 
     async def flush_pending_goals(self):
         """Flush any goals waiting for assist that have exceeded buffer time."""
         now_ts = asyncio.get_event_loop().time()
         expired_ids = []
-        target_ch = TELEGRAM_LIVE_CHANNEL_ID
         for evt_id, item in list(self.pending_goals.items()):
             if self.state_manager.is_processed(evt_id):
                 expired_ids.append(evt_id)
                 continue
             if now_ts - item["timestamp"] >= 10.0:
                 msg = formatter.format_goal(item["evt"], item["fixture"])
-                await self.broadcast_alert(msg, evt_id, channel_id=target_ch)
+                await self.broadcast_alert(msg, evt_id)
                 expired_ids.append(evt_id)
         for eid in expired_ids:
             if eid in self.pending_goals:
@@ -218,37 +211,17 @@ class FootballBotEngine:
                     if st_code in ["FT", "AET", "PEN", "CANC", "ABD", "SUSP"]:
                         self.tracked_live_fixture_ids.discard(fix_id)
 
-    async def poll_news(self):
-        """Poll Tier 1 sources, rewrite via AI, and publish news alerts to news channel (@ElOnceTitularNoticias)."""
-        logger.info("Polling latest news & transfer headlines for news channel...")
-        try:
-            posts = await self.news_engine.get_latest_news_posts()
-            for msg, news_id in posts:
-                if not self.state_manager.is_processed(news_id):
-                    await self.broadcast_alert(msg, news_id, channel_id=TELEGRAM_NEWS_CHANNEL_ID)
-        except Exception as e:
-            logger.error(f"Error polling news: {e}")
-
     async def run(self):
         logger.info(f"Starting El Once Titular Automation Bot (Polling interval: {LIVE_POLL_INTERVAL}s)...")
         await self.check_api_status()
 
-        # Take a snapshot of currently live fixtures and news feeds at startup to ignore all past events/news
+        # Take a snapshot of currently live fixtures at startup to ignore all past events
         await self.snapshot_live_fixtures_on_startup()
-        await self.news_engine.snapshot_news_on_startup()
-        
-        last_news_check = 0
 
         while True:
             try:
                 # Poll live matches & events for live channel (@ElOnceTitular)
                 await self.poll_live_fixtures()
-
-                # Poll Tier 1 news & transfer headlines for news channel (@ElOnceTitularNoticias)
-                now = asyncio.get_event_loop().time()
-                if last_news_check == 0 or (now - last_news_check > NEWS_POLL_INTERVAL):
-                    await self.poll_news()
-                    last_news_check = now
                     
             except Exception as e:
                 logger.error(f"Error in main polling loop: {e}", exc_info=True)

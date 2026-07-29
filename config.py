@@ -1,25 +1,19 @@
 import os
-from pathlib import Path
 from dotenv import load_dotenv
 
-# Load environment variables
 load_dotenv()
 
-BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / "data"
-DATA_DIR.mkdir(exist_ok=True)
+# Environment & Debug
+ENV = os.getenv("ENV", "production")
+DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "t")
 
-STATE_FILE = DATA_DIR / "state.json"
-
-# API-Football
+# API-Football Credentials
 API_KEY = os.getenv("API_FOOTBALL_KEY", "")
 API_BASE_URL = os.getenv("API_FOOTBALL_BASE_URL", "https://v3.football.api-sports.io")
 
-# Telegram Channel IDs
+# Telegram Channel ID (Live Minute-by-Minute Channel)
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHANNEL_ID = os.getenv("TELEGRAM_CHANNEL_ID", "@ElOnceTitular")
-TELEGRAM_LIVE_CHANNEL_ID = os.getenv("TELEGRAM_LIVE_CHANNEL_ID", "@ElOnceTitular")
-TELEGRAM_NEWS_CHANNEL_ID = os.getenv("TELEGRAM_NEWS_CHANNEL_ID", "@ElOnceTitularNoticias")
 
 # Twitter / X Credentials (Disabled)
 TWITTER_API_KEY = ""
@@ -27,10 +21,6 @@ TWITTER_API_SECRET = ""
 TWITTER_ACCESS_TOKEN = ""
 TWITTER_ACCESS_TOKEN_SECRET = ""
 TWITTER_BEARER_TOKEN = ""
-
-# AI & News Config
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-NEWS_POLL_INTERVAL = int(os.getenv("NEWS_POLL_INTERVAL", "1800"))
 
 # Polling intervals in seconds
 LIVE_POLL_INTERVAL = int(os.getenv("LIVE_POLL_INTERVAL", "10"))
