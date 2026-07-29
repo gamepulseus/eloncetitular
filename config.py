@@ -23,10 +23,9 @@ TWITTER_ACCESS_TOKEN = ""
 TWITTER_ACCESS_TOKEN_SECRET = ""
 TWITTER_BEARER_TOKEN = ""
 
-# Polling intervals in seconds
-LIVE_POLL_INTERVAL = int(os.getenv("LIVE_POLL_INTERVAL", "10"))
-INJURIES_POLL_INTERVAL = int(os.getenv("INJURIES_POLL_INTERVAL", "1800"))
-TRANSFERS_POLL_INTERVAL = int(os.getenv("TRANSFERS_POLL_INTERVAL", "3600"))
+# Polling intervals in seconds (Smart Adaptive Polling to guarantee zero quota exhaustion)
+LIVE_POLL_INTERVAL = int(os.getenv("LIVE_POLL_INTERVAL", "15"))  # 15s when matches are live
+IDLE_POLL_INTERVAL = int(os.getenv("IDLE_POLL_INTERVAL", "60"))  # 60s when no matches are live
 
 # List of target league IDs to monitor (includes major leagues, international cups, and national cups)
 # Premier, LaLiga, Serie A, Bundesliga, Ligue 1, UCL, UEL, UECL, Arg, Bra, MX, MLS, Saudi, Lib, Sud, FUTVE, Copa Ven, Copa del Rey, Coppa Italia, FA Cup, Carabao, DFB Pokal, Coupe de France, Copa Arg, Copa do Brasil

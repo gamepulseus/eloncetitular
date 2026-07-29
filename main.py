@@ -9,6 +9,7 @@ if hasattr(sys.stdout, 'reconfigure'):
 
 from config import (
     LIVE_POLL_INTERVAL,
+    IDLE_POLL_INTERVAL,
     TARGET_LEAGUES
 )
 from api_football import APIFootballClient
@@ -178,8 +179,8 @@ class FootballBotEngine:
             if eid in self.pending_goals:
                 del self.pending_goals[eid]
 
-    async def poll_live_fixtures(self):
-        """Poll live fixtures and process them concurrently for ultra-fast performance. Also tracks finished matches."""
+    async def poll_live_fixtures(self) -> bool:
+        """Poll live fixtures. Returns True if matches are currently live, False otherwise."""
         logger.info("Polling live fixtures...")
         fixtures = await self.api_client.get_live_fixtures(league_ids=TARGET_LEAGUES)
         
@@ -210,8 +211,10 @@ class FootballBotEngine:
                 if fix_data:
                     await self.process_single_fixture(fix_data, is_finished_check=True)
 
+        return len(current_live_ids) > 0
+
     async def run(self):
-        logger.info(f"Starting El Once Titular Automation Bot (Polling interval: {LIVE_POLL_INTERVAL}s)...")
+        logger.info(f"Starting El Once Titular Automation Bot (Adaptive Polling: {LIVE_POLL_INTERVAL}s live / {IDLE_POLL_INTERVAL}s idle)...")
         await self.check_api_status()
 
         # Take a snapshot of currently live fixtures at startup to ignore all past events
@@ -220,18 +223,21 @@ class FootballBotEngine:
         while True:
             try:
                 # Poll live matches & events for live channel (@ElOnceTitular)
-                await self.poll_live_fixtures()
+                has_live_matches = await self.poll_live_fixtures()
                 
                 # Check if API daily quota limit was reached
                 if getattr(self.api_client, 'quota_exceeded', False):
                     logger.warning("API-Football daily request limit reached. Pausing polling for 5 minutes before retrying...")
                     await asyncio.sleep(300)
                     continue
+
+                # Smart Adaptive Sleep: 15s when matches are live, 60s when no matches are live
+                sleep_time = LIVE_POLL_INTERVAL if has_live_matches else IDLE_POLL_INTERVAL
+                await asyncio.sleep(sleep_time)
                     
             except Exception as e:
                 logger.error(f"Error in main polling loop: {e}", exc_info=True)
-                
-            await asyncio.sleep(LIVE_POLL_INTERVAL)
+                await asyncio.sleep(LIVE_POLL_INTERVAL)
 
 if __name__ == "__main__":
     bot = FootballBotEngine()
