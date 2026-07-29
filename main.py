@@ -204,12 +204,11 @@ class FootballBotEngine:
         if finished_candidates:
             logger.info(f"Checking {len(finished_candidates)} recently finished match(es)...")
             for fix_id in list(finished_candidates):
+                # Always discard from tracking set immediately to prevent infinite retry loops!
+                self.tracked_live_fixture_ids.discard(fix_id)
                 fix_data = await self.api_client.get_fixture_by_id(fix_id)
                 if fix_data:
-                    st_code = fix_data['fixture']['status']['short']
                     await self.process_single_fixture(fix_data, is_finished_check=True)
-                    if st_code in ["FT", "AET", "PEN", "CANC", "ABD", "SUSP"]:
-                        self.tracked_live_fixture_ids.discard(fix_id)
 
     async def run(self):
         logger.info(f"Starting El Once Titular Automation Bot (Polling interval: {LIVE_POLL_INTERVAL}s)...")
@@ -222,6 +221,12 @@ class FootballBotEngine:
             try:
                 # Poll live matches & events for live channel (@ElOnceTitular)
                 await self.poll_live_fixtures()
+                
+                # Check if API daily quota limit was reached
+                if getattr(self.api_client, 'quota_exceeded', False):
+                    logger.warning("API-Football daily request limit reached. Pausing polling for 5 minutes before retrying...")
+                    await asyncio.sleep(300)
+                    continue
                     
             except Exception as e:
                 logger.error(f"Error in main polling loop: {e}", exc_info=True)

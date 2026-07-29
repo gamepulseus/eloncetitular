@@ -13,6 +13,8 @@ class APIFootballClient:
             "x-apisports-key": self.api_key
         }
 
+        self.quota_exceeded = False
+
     async def _get(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
         url = f"{self.base_url}/{endpoint.lstrip('/')}"
         async with httpx.AsyncClient(timeout=15.0) as client:
@@ -25,6 +27,16 @@ class APIFootballClient:
                 errors = data.get("errors", {})
                 if errors:
                     logger.warning(f"API Football response errors for {endpoint}: {errors}")
+                    if isinstance(errors, dict) and "requests" in errors:
+                        err_msg = str(errors.get("requests", ""))
+                        if "request limit" in err_msg.lower():
+                            self.quota_exceeded = True
+                    elif isinstance(errors, list) and errors:
+                        err_msg = str(errors[0])
+                        if "request limit" in err_msg.lower():
+                            self.quota_exceeded = True
+                else:
+                    self.quota_exceeded = False
                 
                 return data.get("response", [])
             except httpx.HTTPStatusError as e:
