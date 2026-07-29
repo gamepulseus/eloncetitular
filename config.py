@@ -15,9 +15,11 @@ STATE_FILE = DATA_DIR / "state.json"
 API_KEY = os.getenv("API_FOOTBALL_KEY", "")
 API_BASE_URL = os.getenv("API_FOOTBALL_BASE_URL", "https://v3.football.api-sports.io")
 
-# Telegram
+# Telegram Channel IDs
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-TELEGRAM_CHANNEL_ID = os.getenv("TELEGRAM_CHANNEL_ID", "")
+TELEGRAM_CHANNEL_ID = os.getenv("TELEGRAM_CHANNEL_ID", "@ElOnceTitular")
+TELEGRAM_LIVE_CHANNEL_ID = os.getenv("TELEGRAM_LIVE_CHANNEL_ID", "@ElOnceTitular")
+TELEGRAM_NEWS_CHANNEL_ID = os.getenv("TELEGRAM_NEWS_CHANNEL_ID", "@ElOnceTitularNoticias")
 
 # Twitter / X Credentials (Disabled)
 TWITTER_API_KEY = ""
