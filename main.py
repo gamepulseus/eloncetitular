@@ -233,8 +233,9 @@ class FootballBotEngine:
         logger.info(f"Starting El Once Titular Automation Bot (Polling interval: {LIVE_POLL_INTERVAL}s)...")
         await self.check_api_status()
 
-        # Take a snapshot of currently live fixtures at startup to ignore all past events
+        # Take a snapshot of currently live fixtures and news feeds at startup to ignore all past events/news
         await self.snapshot_live_fixtures_on_startup()
+        await self.news_engine.snapshot_news_on_startup()
         
         last_news_check = 0
 

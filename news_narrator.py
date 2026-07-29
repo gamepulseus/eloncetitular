@@ -2,6 +2,8 @@ import logging
 import hashlib
 import re
 import html
+from datetime import datetime, timezone, timedelta
+from email.utils import parsedate_to_datetime
 from typing import List, Dict, Any, Optional, Tuple
 import httpx
 from state_manager import StateManager
@@ -29,7 +31,7 @@ REGLAS DE ESTILO INVICTOS:
 3. CITA A LA FUENTE: Si la noticia menciona a Fabrizio Romano, David Ornstein, Marca, AS, L'Equipe, The Athletic o rueda de prensa oficial, MENTIONALO EXPLÍCITAMENTE (ej. "Según la información confirmada por Fabrizio Romano...").
 4. PREGUNTA DE CIERRE EN MAYÚSCULAS: Una frase corta final para generar interacción con los aficionados (ej. ¿HACE BIEN EN SALIR DEL CITY, SEÑORES? o ¿SE IMAGINAN A ESTE CRACK EN EL CAMP NOU?).
 5. LÍNEA DE COMPETICIÓN / MERCADO Y HASHTAGS al final (ej. 🏴󠁧󠁢󠁥󠁮󠁧󠁿 Premier League / Mercado de Fichajes \n 🔥 #Fichajes #Mercado #ElOnceTitular).
-6. Mantén el idioma estrictamente en ESPAÑOL fluido y profesional.
+6. Mantén el idioma strictly en ESPAÑOL fluido y profesional.
 7. No uses formato Markdown pesado (solo <b>negrita</b>, <i>cursiva</i> y HTML limpio compatible con Telegram).
 
 Noticia base:
@@ -42,14 +44,16 @@ class NewsNarratorEngine:
         self.state_manager = StateManager()
         self.http_client = httpx.AsyncClient(timeout=15.0, follow_redirects=True)
 
-    async def fetch_rss_items(self, feed_url: str) -> List[Dict[str, str]]:
-        """Fetch items from a Google News RSS feed."""
+    async def fetch_rss_items(self, feed_url: str) -> List[Dict[str, Any]]:
+        """Fetch fresh items from a Google News RSS feed (strictly within last 6 hours)."""
         items = []
+        now_utc = datetime.now(timezone.utc)
+        max_age = timedelta(hours=6)
+
         try:
             resp = await self.http_client.get(feed_url)
             if resp.status_code == 200:
                 content = resp.text
-                # Parse XML item blocks
                 item_blocks = re.findall(r'<item>(.*?)</item>', content, re.DOTALL)
                 for block in item_blocks[:5]:
                     title_m = re.search(r'<title>(.*?)</title>', block, re.DOTALL)
@@ -58,15 +62,25 @@ class NewsNarratorEngine:
                     
                     title = html.unescape(title_m.group(1)).strip() if title_m else ""
                     link = link_m.group(1).strip() if link_m else ""
-                    
-                    # Clean title (Google News appends " - Source Name")
-                    source_name = ""
-                    if " - " in title:
-                        parts = title.rsplit(" - ", 1)
-                        title = parts[0].strip()
-                        source_name = parts[1].strip()
+                    pub_str = pub_m.group(1).strip() if pub_m else ""
 
-                    if title:
+                    # Filter out old news by publication date
+                    is_fresh = True
+                    if pub_str:
+                        try:
+                            pub_dt = parsedate_to_datetime(pub_str)
+                            if now_utc - pub_dt > max_age:
+                                is_fresh = False
+                        except Exception:
+                            pass
+
+                    if is_fresh and title:
+                        source_name = ""
+                        if " - " in title:
+                            parts = title.rsplit(" - ", 1)
+                            title = parts[0].strip()
+                            source_name = parts[1].strip()
+
                         items.append({
                             "title": title,
                             "link": link,
@@ -75,6 +89,16 @@ class NewsNarratorEngine:
         except Exception as e:
             logger.error(f"Error fetching RSS feed {feed_url}: {e}")
         return items
+
+    async def snapshot_news_on_startup(self):
+        """Mark all pre-existing news items on startup as processed so old news is never published."""
+        logger.info("Initializing startup snapshot for news feeds (suppressing pre-existing news)...")
+        for feed in TARGET_RSS_FEEDS:
+            items = await self.fetch_rss_items(feed)
+            for item in items:
+                title = item["title"]
+                news_hash = hashlib.md5(title.encode('utf-8')).hexdigest()
+                self.state_manager.mark_processed(f"news_{news_hash}")
 
     async def generate_invictos_post_with_ai(self, raw_title: str, raw_summary: str, source_name: str) -> Optional[str]:
         """Generate narrative Invictos-style Telegram post using Google Gemini API or intelligent template engine."""
@@ -101,8 +125,6 @@ class NewsNarratorEngine:
 
         # Intelligent Fallback Redactor (Invictos style) if GEMINI_API_KEY is not set
         source_tag = f"Según los informes de {source_name}" if source_name else "Según la información de fuentes de élite"
-        
-        # Clean title
         clean_title = html.escape(raw_title)
         
         return (
@@ -115,7 +137,7 @@ class NewsNarratorEngine:
         )
 
     async def get_latest_news_posts(self) -> List[Tuple[str, str]]:
-        """Fetch latest news items from Tier 1 sources, format via AI, and return (post_text, news_id)."""
+        """Fetch fresh news items from Tier 1 sources (published < 6h ago), format via AI, and return (post_text, news_id)."""
         posts = []
         for feed in TARGET_RSS_FEEDS:
             items = await self.fetch_rss_items(feed)
@@ -123,7 +145,6 @@ class NewsNarratorEngine:
                 title = item["title"]
                 source = item["source"]
                 
-                # Generate unique ID for this news story
                 news_hash = hashlib.md5(title.encode('utf-8')).hexdigest()
                 news_id = f"news_{news_hash}"
                 
@@ -138,6 +159,5 @@ class NewsNarratorEngine:
 
                 if formatted_post:
                     posts.append((formatted_post, news_id))
-                    # Only take top 1 fresh news story per feed cycle to avoid spamming
                     break
         return posts
